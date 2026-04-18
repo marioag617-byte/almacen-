@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0a0f1e">
+<title>Asistente Almacén</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700&family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0a0f1e;--bg2:#111827;--bg3:#1a2235;--bg4:#1f2d45;
+  --border:#2a3a55;--border2:#3a4f70;
+  --text:#e8f0fe;--muted:#7a90b0;--hint:#4a6080;
+  --accent:#4f9cf9;--accent2:#38bdf8;--green:#34d399;
+  --orange:#fb923c;--red:#f87171;--yellow:#fbbf24;--purple:#a78bfa;
+  --radius:12px;--radius-sm:8px;--radius-lg:18px;
+}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;font-size:15px;-webkit-font-smoothing:antialiased;overflow:hidden}
+
+/* ── LAYOUT ── */
+.shell{display:flex;height:100dvh;overflow:hidden}
+.sidebar{width:64px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;align-items:center;padding:12px 0;gap:6px;flex-shrink:0;z-index:10}
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+
+/* ── SIDEBAR ICONS ── */
+.nav-ico{width:44px;height:44px;border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;font-size:20px;cursor:pointer;border:1.5px solid transparent;transition:all .2s;color:var(--muted)}
+.nav-ico:hover{background:var(--bg3);color:var(--text)}
+.nav-ico.active{background:var(--bg4);border-color:var(--border2);color:var(--accent)}
+.nav-ico.logo{font-size:22px;color:var(--accent);margin-bottom:8px;cursor:default;border:none}
+.nav-sep{width:32px;height:1px;background:var(--border);margin:4px 0}
+
+/* ── HEADER ── */
+.topbar{background:var(--bg2);border-bottom:1px solid var(--border);padding:12px 20px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.topbar-title{font-family:'Syne',sans-serif;font-size:16px;font-weight:600;letter-spacing:-.2px}
+.topbar-sub{font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;margin-top:1px}
+.hora-badge{background:var(--bg3);border:1px solid var(--border);border-radius:20px;padding:4px 12px;font-size:11px;font-family:'DM Mono',monospace;color:var(--accent2)}
+
+/* ── PÁGINAS ── */
+.page{display:none;flex:1;overflow-y:auto;padding:16px 20px 80px}
+.page.active{display:block}
+
+/* ── CHAT PAGE ── */
+.chat-page{display:none;flex:1;flex-direction:column;overflow:hidden}
+.chat-page.active{display:flex}
+.chat-msgs{flex:1;overflow-y:auto;padding:16px 20px;display:flex;flex-direction:column;gap:12px}
+.msg{display:flex;gap:10px;align-items:flex-start;animation:fadeUp .2s ease}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.msg.user{flex-direction:row-reverse}
+.msg-avatar{width:32px;height:32px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:14px}
+.msg.ai .msg-avatar{background:linear-gradient(135deg,#1e40af,#4f9cf9);color:#fff}
+.msg.user .msg-avatar{background:var(--bg4);border:1px solid var(--border2);color:var(--text)}
+.msg-bubble{max-width:75%;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-lg) var(--radius-lg) var(--radius-lg) 4px;padding:10px 14px;font-size:14px;line-height:1.6;color:var(--text)}
+.msg.user .msg-bubble{background:var(--bg4);border-color:var(--border2);border-radius:var(--radius-lg) var(--radius-lg) 4px var(--radius-lg)}
+.msg-bubble.typing{color:var(--muted)}
+.typing-dots span{display:inline-block;animation:dot 1.2s infinite;opacity:0}
+.typing-dots span:nth-child(2){animation-delay:.2s}
+.typing-dots span:nth-child(3){animation-delay:.4s}
+@keyframes dot{0%,80%,100%{opacity:0}40%{opacity:1}}
+.chat-input-wrap{padding:12px 20px;border-top:1px solid var(--border);background:var(--bg2);display:flex;gap:10px;align-items:flex-end}
+.chat-input{flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;padding:10px 14px;outline:none;resize:none;min-height:42px;max-height:120px;line-height:1.5;transition:border-color .2s}
+.chat-input:focus{border-color:var(--accent)}
+.chat-input::placeholder{color:var(--muted)}
+.send-btn{background:var(--accent);color:#fff;border:none;border-radius:var(--radius-sm);width:42px;height:42px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px;flex-shrink:0;transition:opacity .15s,transform .15s}
+.send-btn:active{opacity:.8;transform:scale(.95)}
+.send-btn:disabled{opacity:.4;cursor:not-allowed}
+
+/* ── DASHBOARD ── */
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px}
+.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px}
+.card-title{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px}
+.metric{background:var(--bg3);border-radius:var(--radius-sm);padding:12px 10px;text-align:center}
+.metric-num{font-size:26px;font-weight:700;font-family:'Syne',sans-serif;line-height:1}
+.metric-lbl{font-size:9px;color:var(--muted);margin-top:4px;text-transform:uppercase;letter-spacing:.04em}
+.metric-num.accent{color:var(--accent)}.metric-num.green{color:var(--green)}.metric-num.orange{color:var(--orange)}.metric-num.red{color:var(--red)}
+
+/* ── TAREAS ── */
+.section-title{font-family:'Syne',sans-serif;font-size:14px;font-weight:600;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between}
+.task-item{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:8px;display:flex;align-items:center;gap:12px;transition:border-color .2s}
+.task-item:hover{border-color:var(--border2)}
+.task-check{width:20px;height:20px;border-radius:6px;border:1.5px solid var(--border2);flex-shrink:0;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s}
+.task-check.done{background:var(--green);border-color:var(--green);color:#fff;font-size:11px}
+.task-body{flex:1;min-width:0}
+.task-name{font-size:14px;font-weight:500}
+.task-name.done{text-decoration:line-through;color:var(--muted)}
+.task-meta{font-size:11px;color:var(--muted);margin-top:2px;display:flex;gap:8px}
+.task-time{font-family:'DM Mono',monospace}
+.prio{padding:1px 7px;border-radius:20px;font-size:10px;font-weight:600}
+.prio.alta{background:#450a0a;color:var(--red)}.prio.media{background:#422006;color:var(--orange)}.prio.baja{background:#052e16;color:var(--green)}
+.task-del{background:none;border:none;color:var(--hint);cursor:pointer;font-size:16px;padding:2px 6px;border-radius:4px}
+.task-del:hover{color:var(--red)}
+
+/* ── RECEPCIONES ── */
+.recep-item{background:var(--bg2);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:8px}
+.recep-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
+.recep-nombre{font-size:14px;font-weight:500}
+.recep-meta{font-size:11px;color:var(--muted);font-family:'DM Mono',monospace;display:flex;gap:10px;flex-wrap:wrap}
+.status-badge{padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600}
+.status-badge.pendiente{background:#422006;color:var(--orange)}
+.status-badge.recibido{background:#052e16;color:var(--green)}
+.status-badge.revision{background:#1e1a4a;color:var(--purple)}
+
+/* ── FORMULARIO ── */
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+.field{margin-bottom:12px}
+.field label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:5px}
+.field input,.field select,.field textarea{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px;padding:9px 12px;outline:none;transition:border-color .2s;-webkit-appearance:none}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--accent)}
+.field select option{background:var(--bg2)}
+.btn{padding:9px 18px;border-radius:var(--radius-sm);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;border:none;transition:opacity .15s,transform .15s;display:inline-flex;align-items:center;gap:6px}
+.btn:active{opacity:.8;transform:scale(.97)}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-ghost{background:var(--bg3);color:var(--muted);border:1px solid var(--border)}
+
+/* ── REPORTE ── */
+.report-card{background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:10px}
+.report-header{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.report-icon{width:36px;height:36px;border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.report-title{font-size:14px;font-weight:600}
+.report-sub{font-size:11px;color:var(--muted)}
+.bar-wrap{height:6px;background:var(--bg2);border-radius:3px;overflow:hidden;margin-top:8px}
+.bar-fill{height:100%;border-radius:3px;transition:width .6s ease}
+
+/* ── TOAST ── */
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(60px);background:var(--bg4);border:1px solid var(--border2);color:var(--text);padding:9px 18px;border-radius:30px;font-size:13px;z-index:999;transition:transform .3s,opacity .3s;white-space:nowrap;pointer-events:none;opacity:0}
+.toast.show{transform:translateX(-50%) translateY(0);opacity:1}
+
+/* ── BOTTOM NAV (mobile) ── */
+.bottom-nav{display:none;position:fixed;bottom:0;left:0;right:0;background:var(--bg2);border-top:1px solid var(--border);padding:8px 0 env(safe-area-inset-bottom,8px);z-index:100}
+.bnav-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;background:none;border:none;color:var(--muted);font-family:'DM Sans',sans-serif;font-size:9px;cursor:pointer;padding:4px 0;transition:color .15s}
+.bnav-btn.active{color:var(--accent)}
+.bnav-icon{font-size:20px}
+
+/* ── PANEL FLOTANTE (agregar) ── */
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(4px);z-index:200;align-items:flex-end}
+.overlay.open{display:flex}
+.panel{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg) var(--radius-lg) 0 0;padding:20px 20px 36px;width:100%;max-height:90dvh;overflow-y:auto;animation:slideUp .25s ease;position:relative}
+@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.panel-title{font-family:'Syne',sans-serif;font-size:16px;font-weight:600;margin-bottom:16px}
+.panel-close{position:absolute;right:18px;top:18px;background:var(--bg3);border:none;color:var(--muted);width:28px;height:28px;border-radius:50%;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+
+@media(max-width:600px){
+  .sidebar{display:none}
+  .bottom-nav{display:flex}
+  .grid-4{grid-template-columns:repeat(2,1fr)}
+  .grid-2{grid-template-columns:1fr}
+  .form-row{grid-template-columns:1fr}
+  .overlay{align-items:flex-end}
+}
+@media(min-width:601px){
+  .overlay{align-items:center}
+  .panel{max-width:480px;margin:0 auto;border-radius:var(--radius-lg)}
+}
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- SIDEBAR -->
+  <nav class="sidebar">
+    <div class="nav-ico logo">📦</div>
+    <div class="nav-sep"></div>
+    <div class="nav-ico active" onclick="irA('dashboard',this)" title="Dashboard">🏠</div>
+    <div class="nav-ico" onclick="irA('chat',this)" title="Asistente IA">🤖</div>
+    <div class="nav-ico" onclick="irA('tareas',this)" title="Tareas">✅</div>
+    <div class="nav-ico" onclick="irA('recepciones',this)" title="Recepciones">🚚</div>
+    <div class="nav-ico" onclick="irA('reporte',this)" title="Reporte">📊</div>
+  </nav>
+
+  <div class="main">
+    <!-- TOPBAR -->
+    <div class="topbar">
+      <div>
+        <div class="topbar-title" id="page-title">Dashboard</div>
+        <div class="topbar-sub" id="page-sub">Resumen del día</div>
+      </div>
+      <div class="hora-badge" id="reloj">--:--</div>
+    </div>
+
+    <!-- DASHBOARD -->
+    <div class="page active" id="pg-dashboard">
+      <div class="grid-4">
+        <div class="metric"><div class="metric-num accent" id="d-tareas">0</div><div class="metric-lbl">Tareas hoy</div></div>
+        <div class="metric"><div class="metric-num green" id="d-hechas">0</div><div class="metric-lbl">Completadas</div></div>
+        <div class="metric"><div class="metric-num orange" id="d-recep">0</div><div class="metric-lbl">Recepciones</div></div>
+        <div class="metric"><div class="metric-num red" id="d-pend">0</div><div class="metric-lbl">Pendientes</div></div>
+      </div>
+
+      <div class="card" style="margin-bottom:14px">
+        <div class="card-title">Tareas pendientes hoy</div>
+        <div id="d-lista-tareas"></div>
+      </div>
+
+      <div class="card" style="margin-bottom:14px">
+        <div class="card-title">Últimas recepciones</div>
+        <div id="d-lista-recep"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Recordatorios del día</div>
+        <div id="d-recordatorios"></div>
+      </div>
+    </div>
+
+    <!-- CHAT IA -->
+    <div class="chat-page" id="pg-chat">
+      <div class="chat-msgs" id="chat-msgs"></div>
+      <div class="chat-input-wrap">
+        <textarea class="chat-input" id="chat-input" placeholder="Pregunta algo sobre el almacén..." rows="1" onkeydown="chatKeydown(event)" oninput="autoResize(this)"></textarea>
+        <button class="send-btn" id="send-btn" onclick="enviarMensaje()">➤</button>
+      </div>
+    </div>
+
+    <!-- TAREAS -->
+    <div class="page" id="pg-tareas">
+      <div class="section-title">
+        Tareas del día
+        <button class="btn btn-primary" onclick="abrirPanel('tarea')" style="font-size:12px;padding:6px 12px">+ Nueva tarea</button>
+      </div>
+      <div id="lista-tareas"></div>
+    </div>
+
+    <!-- RECEPCIONES -->
+    <div class="page" id="pg-recepciones">
+      <div class="section-title">
+        Control de recepciones
+        <button class="btn btn-primary" onclick="abrirPanel('recepcion')" style="font-size:12px;padding:6px 12px">+ Registrar</button>
+      </div>
+      <div id="lista-recepciones"></div>
+    </div>
+
+    <!-- REPORTE -->
+    <div class="page" id="pg-reporte">
+      <div class="section-title">Reporte del día</div>
+      <div id="contenido-reporte"></div>
+    </div>
+  </div>
+</div>
+
+<!-- BOTTOM NAV (mobile) -->
+<nav class="bottom-nav">
+  <button class="bnav-btn active" onclick="irA('dashboard',this)"><span class="bnav-icon">🏠</span>Inicio</button>
+  <button class="bnav-btn" onclick="irA('chat',this)"><span class="bnav-icon">🤖</span>IA</button>
+  <button class="bnav-btn" onclick="irA('tareas',this)"><span class="bnav-icon">✅</span>Tareas</button>
+  <button class="bnav-btn" onclick="irA('recepciones',this)"><span class="bnav-icon">🚚</span>Recep.</button>
+  <button class="bnav-btn" onclick="irA('reporte',this)"><span class="bnav-icon">📊</span>Reporte</button>
+</nav>
+
+<!-- PANEL AGREGAR TAREA -->
+<div class="overlay" id="overlay-tarea" onclick="cerrarPanel('tarea',event)">
+  <div class="panel">
+    <button class="panel-close" onclick="cerrarPanel('tarea')">×</button>
+    <div class="panel-title">Nueva tarea</div>
+    <div class="field"><label>Nombre de la tarea</label><input type="text" id="t-nombre" placeholder="Ej: Revisar fechas de vencimiento"></div>
+    <div class="form-row">
+      <div class="field"><label>Hora</label><input type="time" id="t-hora"></div>
+      <div class="field"><label>Prioridad</label>
+        <select id="t-prio"><option value="alta">Alta</option><option value="media" selected>Media</option><option value="baja">Baja</option></select>
+      </div>
+    </div>
+    <div class="field"><label>Categoría</label>
+      <select id="t-cat">
+        <option>Recepción de mercadería</option><option>Control de vencimientos</option>
+        <option>Inventario</option><option>Limpieza y orden</option>
+        <option>Reporte</option><option>Otro</option>
+      </select>
+    </div>
+    <button class="btn btn-primary" onclick="agregarTarea()" style="width:100%;justify-content:center;padding:12px">Guardar tarea</button>
+  </div>
+</div>
+
+<!-- PANEL AGREGAR RECEPCIÓN -->
+<div class="overlay" id="overlay-recepcion" onclick="cerrarPanel('recepcion',event)">
+  <div class="panel">
+    <button class="panel-close" onclick="cerrarPanel('recepcion')">×</button>
+    <div class="panel-title">Registrar recepción</div>
+    <div class="field"><label>Proveedor / Producto</label><input type="text" id="r-nombre" placeholder="Ej: Distribuidora Norte — Lácteos"></div>
+    <div class="form-row">
+      <div class="field"><label>Cantidad bultos</label><input type="number" id="r-qty" placeholder="Ej: 10" min="1"></div>
+      <div class="field"><label>Estado</label>
+        <select id="r-estado"><option value="pendiente">Pendiente</option><option value="recibido">Recibido</option><option value="revision">En revisión</option></select>
+      </div>
+    </div>
+    <div class="field"><label>Observaciones</label><textarea id="r-obs" rows="2" placeholder="Ej: Producto en buen estado, temperatura correcta"></textarea></div>
+    <button class="btn btn-primary" onclick="agregarRecepcion()" style="width:100%;justify-content:center;padding:12px">Registrar</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── DATOS ─────────────────────────────────────────────────────
+let tareas = JSON.parse(localStorage.getItem('asis_tareas') || '[]');
+let recepciones = JSON.parse(localStorage.getItem('asis_recep') || '[]');
+let chatHistory = [];
+let nextIdT = Date.now();
+let nextIdR = Date.now() + 1;
+
+// Tareas por defecto si no hay ninguna
+if (!tareas.length) {
+  const hoy = new Date().toISOString().split('T')[0];
+  tareas = [
+    {id:1, nombre:'Revisar fechas de vencimiento', hora:'08:00', prio:'alta', cat:'Control de vencimientos', done:false, fecha:hoy},
+    {id:2, nombre:'Recepción de mercadería del proveedor', hora:'09:00', prio:'alta', cat:'Recepción de mercadería', done:false, fecha:hoy},
+    {id:3, nombre:'Inventario de productos secos', hora:'11:00', prio:'media', cat:'Inventario', done:false, fecha:hoy},
+    {id:4, nombre:'Limpieza y orden del almacén', hora:'14:00', prio:'baja', cat:'Limpieza y orden', done:false, fecha:hoy},
+    {id:5, nombre:'Reporte diario de stock', hora:'17:00', prio:'media', cat:'Reporte', done:false, fecha:hoy},
+  ];
+  guardarTodo();
+}
+
+function guardarTodo() {
+  localStorage.setItem('asis_tareas', JSON.stringify(tareas));
+  localStorage.setItem('asis_recep', JSON.stringify(recepciones));
+}
+
+// ── RELOJ ─────────────────────────────────────────────────────
+function actualizarReloj() {
+  const ahora = new Date();
+  document.getElementById('reloj').textContent =
+    ahora.toLocaleTimeString('es-PE', {hour:'2-digit', minute:'2-digit'});
+}
+actualizarReloj();
+setInterval(actualizarReloj, 1000);
+
+// ── NAVEGACIÓN ────────────────────────────────────────────────
+const paginas = {
+  dashboard: {titulo:'Dashboard', sub:'Resumen del día'},
+  chat:      {titulo:'Asistente IA', sub:'Pregúntame sobre el almacén'},
+  tareas:    {titulo:'Tareas', sub:'Gestión de actividades diarias'},
+  recepciones:{titulo:'Recepciones', sub:'Control de ingreso de mercadería'},
+  reporte:   {titulo:'Reporte', sub:'Resumen y estadísticas'},
+};
+
+function irA(pagina, el) {
+  // Ocultar todas las páginas
+  document.querySelectorAll('.page, .chat-page').forEach(p => {
+    p.classList.remove('active');
+  });
+
+  // Activar página correcta
+  const pg = document.getElementById('pg-' + pagina);
+  if (pg) pg.classList.add('active');
+
+  // Actualizar nav sidebar
+  document.querySelectorAll('.nav-ico:not(.logo)').forEach(n => n.classList.remove('active'));
+  document.querySelectorAll('.bnav-btn').forEach(b => b.classList.remove('active'));
+  if (el) el.classList.add('active');
+
+  // Topbar
+  const info = paginas[pagina];
+  document.getElementById('page-title').textContent = info.titulo;
+  document.getElementById('page-sub').textContent = info.sub;
+
+  // Renderizar
+  if (pagina === 'dashboard') renderDashboard();
+  if (pagina === 'tareas') renderTareas();
+  if (pagina === 'recepciones') renderRecepciones();
+  if (pagina === 'reporte') renderReporte();
+  if (pagina === 'chat' && chatHistory.length === 0) mensajeBienvenida();
+}
+
+// ── DASHBOARD ─────────────────────────────────────────────────
+function renderDashboard() {
+  const hoy = new Date().toISOString().split('T')[0];
+  const tareasHoy = tareas.filter(t => t.fecha === hoy);
+  const hechas = tareasHoy.filter(t => t.done).length;
+  const recepHoy = recepciones.filter(r => r.fecha === hoy);
+  const pendientes = tareasHoy.filter(t => !t.done).length;
+
+  document.getElementById('d-tareas').textContent = tareasHoy.length;
+  document.getElementById('d-hechas').textContent = hechas;
+  document.getElementById('d-recep').textContent = recepHoy.length;
+  document.getElementById('d-pend').textContent = pendientes;
+
+  // Lista tareas pendientes
+  const lt = document.getElementById('d-lista-tareas');
+  const pends = tareasHoy.filter(t => !t.done).slice(0, 4);
+  if (!pends.length) {
+    lt.innerHTML = '<div style="font-size:13px;color:var(--muted);padding:8px 0">✅ ¡Todas las tareas completadas!</div>';
+  } else {
+    lt.innerHTML = pends.map(t => `
+      <div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--border)">
+        <span style="font-size:16px">${t.prio==='alta'?'🔴':t.prio==='media'?'🟡':'🟢'}</span>
+        <span style="flex:1;font-size:13px">${t.nombre}</span>
+        <span style="font-size:11px;color:var(--muted);font-family:'DM Mono',monospace">${t.hora}</span>
+      </div>`).join('');
+  }
+
+  // Recepciones recientes
+  const lr = document.getElementById('d-lista-recep');
+  if (!recepHoy.length) {
+    lr.innerHTML = '<div style="font-size:13px;color:var(--muted);padding:8px 0">Sin recepciones registradas hoy</div>';
+  } else {
+    lr.innerHTML = recepHoy.slice(0,3).map(r => `
+      <div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--border)">
+        <span style="font-size:16px">🚚</span>
+        <span style="flex:1;font-size:13px">${r.nombre}</span>
+        <span class="status-badge ${r.estado}">${r.estado}</span>
+      </div>`).join('');
+  }
+
+  // Recordatorios
+  const ahora = new Date();
+  const hora = ahora.getHours();
+  const recordatorios = [
+    hora < 9  ? '⏰ Recuerda revisar las fechas de vencimiento al inicio del día' : null,
+    hora >= 9 && hora < 12 ? '📋 Hora pico de recepciones — ten el registro listo' : null,
+    hora >= 12 && hora < 14 ? '🕐 Actualiza el inventario después del almuerzo' : null,
+    hora >= 14 && hora < 17 ? '📦 Revisa el orden del almacén esta tarde' : null,
+    hora >= 17 ? '📊 No olvides generar el reporte diario antes de salir' : null,
+  ].filter(Boolean);
+
+  document.getElementById('d-recordatorios').innerHTML = recordatorios.map(r =>
+    `<div style="font-size:13px;padding:7px 0;border-bottom:1px solid var(--border);color:var(--text)">${r}</div>`
+  ).join('') || '<div style="font-size:13px;color:var(--muted)">Sin recordatorios pendientes</div>';
+}
+
+// ── TAREAS ────────────────────────────────────────────────────
+function renderTareas() {
+  const hoy = new Date().toISOString().split('T')[0];
+  const tareasHoy = tareas.filter(t => t.fecha === hoy).sort((a,b) => a.hora.localeCompare(b.hora));
+  const cont = document.getElementById('lista-tareas');
+
+  if (!tareasHoy.length) {
+    cont.innerHTML = '<div class="empty-state" style="text-align:center;padding:2rem;color:var(--muted)">Sin tareas para hoy.<br>Toca + para agregar.</div>';
+    return;
+  }
+
+  cont.innerHTML = tareasHoy.map(t => `
+    <div class="task-item">
+      <div class="task-check ${t.done?'done':''}" onclick="toggleTarea(${t.id})">${t.done?'✓':''}</div>
+      <div class="task-body">
+        <div class="task-name ${t.done?'done':''}">${t.nombre}</div>
+        <div class="task-meta">
+          <span class="task-time">⏰ ${t.hora}</span>
+          <span class="prio ${t.prio}">${t.prio}</span>
+          <span>${t.cat}</span>
+        </div>
+      </div>
+      <button class="task-del" onclick="eliminarTarea(${t.id})">×</button>
+    </div>`).join('');
+}
+
+function toggleTarea(id) {
+  const t = tareas.find(t => t.id === id);
+  if (t) { t.done = !t.done; guardarTodo(); renderTareas(); renderDashboard(); }
+}
+
+function eliminarTarea(id) {
+  tareas = tareas.filter(t => t.id !== id);
+  guardarTodo(); renderTareas(); toast('Tarea eliminada');
+}
+
+function agregarTarea() {
+  const nombre = document.getElementById('t-nombre').value.trim();
+  const hora   = document.getElementById('t-hora').value || '08:00';
+  const prio   = document.getElementById('t-prio').value;
+  const cat    = document.getElementById('t-cat').value;
+  if (!nombre) { toast('Escribe el nombre de la tarea'); return; }
+
+  const hoy = new Date().toISOString().split('T')[0];
+  tareas.push({id: nextIdT++, nombre, hora, prio, cat, done: false, fecha: hoy});
+  guardarTodo();
+  cerrarPanel('tarea');
+  renderTareas();
+  toast('✓ Tarea agregada');
+}
+
+// ── RECEPCIONES ───────────────────────────────────────────────
+function renderRecepciones() {
+  const cont = document.getElementById('lista-recepciones');
+  if (!recepciones.length) {
+    cont.innerHTML = '<div style="text-align:center;padding:2rem;color:var(--muted)">Sin recepciones registradas.<br>Toca + para agregar.</div>';
+    return;
+  }
+  const sorted = [...recepciones].sort((a,b) => b.id - a.id);
+  cont.innerHTML = sorted.map(r => `
+    <div class="recep-item">
+      <div class="recep-header">
+        <span class="recep-nombre">🚚 ${r.nombre}</span>
+        <span class="status-badge ${r.estado}">${r.estado}</span>
+      </div>
+      <div class="recep-meta">
+        <span>📦 ${r.qty} bultos</span>
+        <span>🕐 ${r.hora}</span>
+        <span>📅 ${r.fecha}</span>
+        ${r.obs ? `<span>📝 ${r.obs}</span>` : ''}
+      </div>
+    </div>`).join('');
+}
+
+function agregarRecepcion() {
+  const nombre = document.getElementById('r-nombre').value.trim();
+  const qty    = document.getElementById('r-qty').value || '1';
+  const estado = document.getElementById('r-estado').value;
+  const obs    = document.getElementById('r-obs').value.trim();
+  if (!nombre) { toast('Escribe el proveedor o producto'); return; }
+
+  const ahora = new Date();
+  recepciones.push({
+    id: nextIdR++,
+    nombre, qty, estado, obs,
+    fecha: ahora.toLocaleDateString('es-PE'),
+    hora:  ahora.toLocaleTimeString('es-PE', {hour:'2-digit', minute:'2-digit'})
+  });
+  guardarTodo();
+  cerrarPanel('recepcion');
+  renderRecepciones();
+  toast('✓ Recepción registrada');
+}
+
+// ── REPORTE ───────────────────────────────────────────────────
+function renderReporte() {
+  const hoy = new Date().toISOString().split('T')[0];
+  const tareasHoy = tareas.filter(t => t.fecha === hoy);
+  const hechas = tareasHoy.filter(t => t.done);
+  const pendientes = tareasHoy.filter(t => !t.done);
+  const recepHoy = recepciones.filter(r => r.fecha === new Date().toLocaleDateString('es-PE'));
+  const pct = tareasHoy.length ? Math.round((hechas.length / tareasHoy.length) * 100) : 0;
+
+  document.getElementById('contenido-reporte').innerHTML = `
+    <div class="report-card">
+      <div class="report-header">
+        <div class="report-icon" style="background:#1e3a5f">✅</div>
+        <div><div class="report-title">Tareas completadas</div><div class="report-sub">${hechas.length} de ${tareasHoy.length} tareas</div></div>
+        <div style="margin-left:auto;font-family:'Syne',sans-serif;font-size:22px;font-weight:700;color:var(--green)">${pct}%</div>
+      </div>
+      <div class="bar-wrap"><div class="bar-fill" style="width:${pct}%;background:var(--green)"></div></div>
+    </div>
+
+    <div class="report-card">
+      <div class="report-header">
+        <div class="report-icon" style="background:#1a2f1a">🚚</div>
+        <div><div class="report-title">Recepciones del día</div><div class="report-sub">${recepHoy.length} recepciones registradas</div></div>
+      </div>
+      ${recepHoy.map(r => `<div style="font-size:13px;padding:5px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between"><span>${r.nombre}</span><span class="status-badge ${r.estado}">${r.estado}</span></div>`).join('') || '<div style="font-size:13px;color:var(--muted);padding:6px 0">Sin recepciones hoy</div>'}
+    </div>
+
+    <div class="report-card">
+      <div class="report-header">
+        <div class="report-icon" style="background:#3a1a1a">⏳</div>
+        <div><div class="report-title">Tareas pendientes</div><div class="report-sub">${pendientes.length} sin completar</div></div>
+      </div>
+      ${pendientes.map(t => `<div style="font-size:13px;padding:5px 0;border-bottom:1px solid var(--border);display:flex;gap:8px"><span class="prio ${t.prio}">${t.prio}</span><span>${t.nombre}</span></div>`).join('') || '<div style="font-size:13px;color:var(--green);padding:6px 0">✅ Todo completado</div>'}
+    </div>
+
+    <div style="text-align:center;padding:1rem 0">
+      <button class="btn btn-ghost" onclick="toast('Reporte copiado al portapapeles')">📋 Exportar reporte</button>
+    </div>`;
+}
+
+// ── CHAT IA ───────────────────────────────────────────────────
+function mensajeBienvenida() {
+  const hora = new Date().getHours();
+  const saludo = hora < 12 ? 'Buenos días' : hora < 18 ? 'Buenas tardes' : 'Buenas noches';
+  agregarMsgIA(`${saludo} 👋 Soy tu asistente de almacén. Puedo ayudarte con:\n\n• Consultas sobre tus tareas y recepciones\n• Consejos sobre control de vencimientos\n• Procedimientos de almacén\n• Reportes del día\n\n¿En qué te ayudo hoy?`);
+}
+
+function agregarMsgIA(texto) {
+  const msgs = document.getElementById('chat-msgs');
+  const div = document.createElement('div');
+  div.className = 'msg ai';
+  div.innerHTML = `<div class="msg-avatar">🤖</div><div class="msg-bubble">${texto.replace(/\n/g,'<br>')}</div>`;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function agregarMsgUser(texto) {
+  const msgs = document.getElementById('chat-msgs');
+  const div = document.createElement('div');
+  div.className = 'msg user';
+  div.innerHTML = `<div class="msg-avatar">👤</div><div class="msg-bubble">${texto}</div>`;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function mostrarTyping() {
+  const msgs = document.getElementById('chat-msgs');
+  const div = document.createElement('div');
+  div.className = 'msg ai';
+  div.id = 'typing-msg';
+  div.innerHTML = `<div class="msg-avatar">🤖</div><div class="msg-bubble typing"><div class="typing-dots"><span>●</span><span>●</span><span>●</span></div></div>`;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function quitarTyping() {
+  const t = document.getElementById('typing-msg');
+  if (t) t.remove();
+}
+
+async function enviarMensaje() {
+  const input = document.getElementById('chat-input');
+  const texto = input.value.trim();
+  if (!texto) return;
+
+  input.value = '';
+  input.style.height = 'auto';
+  document.getElementById('send-btn').disabled = true;
+
+  agregarMsgUser(texto);
+  mostrarTyping();
+
+  // Contexto del almacén
+  const hoy = new Date().toISOString().split('T')[0];
+  const tareasHoy = tareas.filter(t => t.fecha === hoy);
+  const hechas = tareasHoy.filter(t => t.done).length;
+  const recepHoy = recepciones.filter(r => r.fecha === new Date().toLocaleDateString('es-PE'));
+
+  const contexto = `Eres un asistente experto en gestión de almacenes y control de inventario para una tienda de abarrotes en Perú. 
+Datos actuales del almacén hoy:
+- Tareas del día: ${tareasHoy.length} total, ${hechas} completadas, ${tareasHoy.length - hechas} pendientes
+- Tareas pendientes: ${tareasHoy.filter(t=>!t.done).map(t=>t.nombre).join(', ') || 'ninguna'}
+- Recepciones hoy: ${recepHoy.length} (${recepHoy.map(r=>r.nombre).join(', ') || 'ninguna'})
+- Hora actual: ${new Date().toLocaleTimeString('es-PE')}
+
+Responde de forma concisa, práctica y amigable. Usa emojis cuando sea apropiado. Máximo 3-4 oraciones a menos que se necesite más detalle.`;
+
+  chatHistory.push({role:'user', content: texto});
+
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        system: contexto,
+        messages: chatHistory.slice(-10)
+      })
+    });
+
+    const data = await response.json();
+    const respuesta = data.content?.[0]?.text || 'No pude procesar tu consulta.';
+    chatHistory.push({role:'assistant', content: respuesta});
+    quitarTyping();
+    agregarMsgIA(respuesta);
+  } catch(e) {
+    quitarTyping();
+    // Respuesta offline con lógica local
+    const resp = respuestaLocal(texto);
+    chatHistory.push({role:'assistant', content: resp});
+    agregarMsgIA(resp);
+  } finally {
+    document.getElementById('send-btn').disabled = false;
+    input.focus();
+  }
+}
+
+function respuestaLocal(texto) {
+  const t = texto.toLowerCase();
+  const hoy = new Date().toISOString().split('T')[0];
+  const tareasHoy = tareas.filter(t => t.fecha === hoy);
+  const hechas = tareasHoy.filter(t => t.done).length;
+
+  if (t.includes('tarea') || t.includes('pendiente')) {
+    const pends = tareasHoy.filter(t => !t.done);
+    return pends.length
+      ? `Tienes ${pends.length} tarea(s) pendiente(s): ${pends.map(t=>t.nombre).join(', ')}. ¡Ánimo! 💪`
+      : '✅ ¡Todas las tareas del día están completadas! Excelente trabajo.';
+  }
+  if (t.includes('recep')) {
+    const r = recepciones.filter(r => r.fecha === new Date().toLocaleDateString('es-PE'));
+    return r.length ? `Hoy has registrado ${r.length} recepción(es): ${r.map(r=>r.nombre).join(', ')}.` : 'No hay recepciones registradas hoy. ¿Quieres registrar una?';
+  }
+  if (t.includes('reporte') || t.includes('resumen')) {
+    return `📊 Resumen del día: ${hechas}/${tareasHoy.length} tareas completadas (${tareasHoy.length ? Math.round(hechas/tareasHoy.length*100) : 0}% de avance). Ve a la pestaña Reporte para más detalles.`;
+  }
+  if (t.includes('vencim')) {
+    return '⚠️ Recuerda revisar los productos próximos a vencer. Puedes usar la app de Control de Vencimientos para ver el detalle completo.';
+  }
+  return '🤖 Entendido. Puedo ayudarte con tareas, recepciones, vencimientos y reportes del almacén. ¿Qué necesitas específicamente?';
+}
+
+function chatKeydown(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviarMensaje(); }
+}
+
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+}
+
+// ── PANELES ───────────────────────────────────────────────────
+function abrirPanel(tipo) {
+  document.getElementById('overlay-' + tipo).classList.add('open');
+}
+
+function cerrarPanel(tipo, e) {
+  if (e && e.target !== document.getElementById('overlay-' + tipo)) return;
+  document.getElementById('overlay-' + tipo).classList.remove('open');
+}
+
+// ── TOAST ─────────────────────────────────────────────────────
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ── INICIO ────────────────────────────────────────────────────
+renderDashboard();
+</script>
+</body>
+</html>
