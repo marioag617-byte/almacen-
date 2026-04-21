@@ -117,6 +117,8 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'DM San
 .venc-fecha{font-size:11px;font-family:'DM Mono',monospace;color:var(--muted)}
 .venc-badge{display:inline-block;font-size:10px;font-weight:600;padding:2px 8px;border-radius:20px;margin-top:3px}
 .venc-badge.vencido{background:#450a0a;color:var(--red)}.venc-badge.critico{background:#431407;color:var(--orange)}.venc-badge.alerta{background:#422006;color:var(--yellow)}.venc-badge.ok{background:#052e16;color:var(--green)}
+.venc-del-btn{background:none;border:none;color:var(--hint);font-size:18px;cursor:pointer;padding:4px 6px;border-radius:6px;flex-shrink:0;-webkit-tap-highlight-color:transparent;transition:color .15s,background .15s}
+.venc-del-btn:active{color:var(--red);background:#450a0a}
 
 .venc-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px}
 .venc-stat{background:var(--bg3);border-radius:var(--radius-sm);padding:10px 8px;text-align:center;cursor:pointer;border:1.5px solid transparent}
@@ -580,7 +582,8 @@ function renderVencimientos(){
     grupos[g].forEach(function(p){
       const d=diasRestantes(p.fecha), e=estadoVenc(d);
       const qHtml=p.qty?`<span class="venc-qty">${p.qty} unid.</span>`:'';
-      html+=`<div class="venc-card">
+      const nomEsc=p.nombre.replace(/'/g,"\\'");
+      html+=`<div class="venc-card" id="vcard-${p.fila}">
         <span class="venc-dot ${DOTS_VENC[e]}"></span>
         <div class="venc-info">
           <div class="venc-nombre">${p.nombre}</div>
@@ -590,10 +593,30 @@ function renderVencimientos(){
           <div class="venc-fecha">${fechaFmt(p.fecha)}</div>
           <span class="venc-badge ${e}">${diasLabel(d)}</span>
         </div>
+        <button class="venc-del-btn" onclick="eliminarProductoSheets(${p.fila},'`+nomEsc+`',this)">🗑</button>
       </div>`;
     });
   });
   cont.innerHTML=html;
+}
+
+async function eliminarProductoSheets(fila, nombre, btn){
+  if(!confirm('¿Eliminar "'+nombre+'" de Google Sheets?')) return;
+  btn.textContent='⟳'; btn.disabled=true;
+  try {
+    const resp = await jsonp({accion:'eliminar', fila:fila});
+    if(!resp.ok) throw new Error(resp.error);
+    // Quitar de la lista local
+    productosSheets = productosSheets.filter(function(p){ return p.fila !== fila; });
+    // Reasignar filas (ajustar índices después de la eliminada)
+    productosSheets.forEach(function(p){ if(p.fila > fila) p.fila--; });
+    renderVencimientos();
+    renderDashboard();
+    toast('🗑 Eliminado de Google Sheets');
+  } catch(e){
+    btn.textContent='🗑'; btn.disabled=false;
+    toast('⚠️ Error al eliminar: '+e.message);
+  }
 }
 
 // ── NAVEGACIÓN ────────────────────────────────────────────────
