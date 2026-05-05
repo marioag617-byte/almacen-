@@ -294,6 +294,44 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'DM San
         <button class="venc-filter-btn f-alerta" onclick="setVencFiltro('alerta',this)">En alerta</button>
         <button class="venc-filter-btn f-ok" onclick="setVencFiltro('ok',this)">Sin alerta</button>
       </div>
+      <!-- Filtro por categoría -->
+      <div style="margin-bottom:10px">
+        <div style="font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Filtrar por categoría</div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <select id="cat-filtro" onchange="setCatFiltro(this.value)" style="flex:1;background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius-sm);color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;padding:8px 12px;outline:none;-webkit-appearance:none">
+            <option value="">— Todas las categorías —</option>
+            <option disabled>── ABARROTES ──</option>
+            <option>Arroz y cereales</option><option>Fideos y pastas</option><option>Harinas y premezclas</option>
+            <option>Azúcar y endulzantes</option><option>Sal y condimentos</option><option>Salsas y aderezos</option>
+            <option>Aceites y grasas</option><option>Conservas y enlatados</option><option>Menestras</option>
+            <option disabled>── LÁCTEOS Y HUEVOS ──</option>
+            <option>Leche fresca y UHT</option><option>Leche evaporada y en polvo</option>
+            <option>Yogur y postres lácteos</option><option>Quesos y mantequilla</option>
+            <option>Crema y nata</option><option>Huevos</option>
+            <option disabled>── BEBIDAS ──</option>
+            <option>Agua y bebidas hidratantes</option><option>Gaseosas y refrescos</option>
+            <option>Jugos y néctares</option><option>Bebidas energéticas</option>
+            <option>Bebidas instantáneas</option><option>Cerveza</option><option>Bebidas alcohólicas</option>
+            <option disabled>── SNACKS Y DULCES ──</option>
+            <option>Galletas y bizcochos</option><option>Chocolates y caramelos</option>
+            <option>Snacks y papitas</option><option>Panetones y panes envasados</option><option>Mermeladas y jaleas</option>
+            <option disabled>── LIMPIEZA DEL HOGAR ──</option>
+            <option>Detergentes y jabón ropa</option><option>Suavizantes y lejía</option>
+            <option>Limpiapisos y desinfectantes</option><option>Lavavajillas</option>
+            <option>Ambientadores</option><option>Insecticidas y repelentes</option>
+            <option>Papel higiénico y servilletas</option><option>Bolsas y papel film</option>
+            <option disabled>── CUIDADO PERSONAL ──</option>
+            <option>Champú y acondicionador</option><option>Jabón de baño</option>
+            <option>Pasta dental y bucal</option><option>Desodorantes</option>
+            <option>Cremas y lociones</option><option>Pañales y toallitas bebé</option>
+            <option disabled>── FARMACIA Y SALUD ──</option>
+            <option>Medicamentos sin receta</option><option>Vitaminas y suplementos</option><option>Primeros auxilios</option>
+            <option disabled>── OTROS ──</option>
+            <option>Alimentos para mascotas</option><option>Otro</option>
+          </select>
+          <button onclick="limpiarCatFiltro()" style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--muted);font-size:12px;padding:8px 10px;cursor:pointer;white-space:nowrap;font-family:'DM Sans',sans-serif">✕ Limpiar</button>
+        </div>
+      </div>
       <div id="lista-vencimientos"><div class="loading-wrap"><div class="spinner"></div><div class="loading-txt">Cargando desde Google Sheets...</div></div></div>
     </div>
 
@@ -415,6 +453,7 @@ let recepciones   = JSON.parse(localStorage.getItem('asis_recep4')  || '[]');
 let recordatorios = JSON.parse(localStorage.getItem('asis_record4') || '[]');
 let productosSheets = [];
 let vencFiltro    = 'todos';
+let catFiltro     = '';
 let chatHistory   = [];
 let nextIdT = Date.now(), nextIdR = Date.now()+1, nextIdRec = Date.now()+2;
 let reconocimiento = null, grabando = false;
@@ -589,6 +628,15 @@ function setVencFiltro(f, el){
   if(el) el.classList.add('active');
   renderVencimientos();
 }
+function setCatFiltro(val){
+  catFiltro = val;
+  renderVencimientos();
+}
+function limpiarCatFiltro(){
+  catFiltro = '';
+  document.getElementById('cat-filtro').value = '';
+  renderVencimientos();
+}
 function filtrarVenc(f, el){
   if(vencFiltro===f){ vencFiltro='todos'; document.querySelectorAll('.venc-filter-btn').forEach(b=>b.classList.remove('active')); document.querySelector('.f-todos').classList.add('active'); }
   else { vencFiltro=f; document.querySelectorAll('.venc-filter-btn').forEach(b=>b.classList.remove('active')); document.querySelector('.f-'+f)?.classList.add('active'); }
@@ -608,8 +656,10 @@ function renderVencimientos(){
 
   const cont = document.getElementById('lista-vencimientos');
   const lista = productosSheets.filter(function(p){
-    if(vencFiltro==='todos') return true;
-    return estadoVenc(diasRestantes(p.fecha)) === vencFiltro;
+    const e = estadoVenc(diasRestantes(p.fecha));
+    const matchEstado = vencFiltro==='todos' || e===vencFiltro;
+    const matchCat = !catFiltro || p.cat===catFiltro;
+    return matchEstado && matchCat;
   }).sort(function(a,b){ return diasRestantes(a.fecha)-diasRestantes(b.fecha); });
 
   if(!productosSheets.length){
@@ -617,7 +667,8 @@ function renderVencimientos(){
     return;
   }
   if(!lista.length){
-    cont.innerHTML='<div style="text-align:center;padding:2rem;color:var(--muted)">Sin productos en esta categoría.</div>';
+    const msg = catFiltro ? 'Sin productos en la categoría: '+catFiltro : 'Sin productos en este estado.';
+    cont.innerHTML='<div style="text-align:center;padding:2rem;color:var(--muted)">'+msg+'<br><small style="font-size:11px">Prueba cambiar los filtros.</small></div>';
     return;
   }
 
