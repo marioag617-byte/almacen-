@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#0a0f1e">
 <title>Jackson — Asistente Almacén</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/zxing-js/0.19.1/zxing.min.js"></script>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700&family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -181,12 +181,9 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'DM San
 /* SCANNER */
 .scanner-wrap{position:fixed;inset:0;background:rgba(0,0,0,.95);z-index:300;display:none;flex-direction:column;align-items:center;justify-content:center}
 .scanner-wrap.open{display:flex}
-.scanner-box{position:relative;width:min(85vw,320px);height:min(85vw,320px);border-radius:16px;overflow:hidden;background:#000}
-#scanner-video{width:100%;height:100%;object-fit:cover}
-.scanner-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
-.scanner-frame{width:65%;height:65%;border:3px solid var(--accent);border-radius:12px;box-shadow:0 0 0 9999px rgba(0,0,0,.55)}
-.scanner-line{position:absolute;width:60%;height:2px;background:var(--accent);border-radius:2px;animation:scanLine 2s ease-in-out infinite}
-@keyframes scanLine{0%,100%{top:20%}50%{top:78%}}
+.scanner-box{position:relative;width:min(88vw,340px);border-radius:16px;overflow:hidden;background:#000}
+#scanner-video{width:100%}
+#scanner-video video{border-radius:12px}
 .scanner-label{color:#fff;font-size:14px;margin-top:16px;text-align:center;font-family:'DM Sans',sans-serif;opacity:.8}
 .scanner-close{margin-top:20px;background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:30px;padding:10px 28px;font-size:14px;cursor:pointer;font-family:'DM Sans',sans-serif}
 .scanner-result{margin-top:12px;background:var(--bg4);border:1px solid var(--accent);border-radius:var(--radius-sm);padding:10px 16px;color:var(--accent2);font-family:'DM Mono',monospace;font-size:13px;display:none}
@@ -468,13 +465,9 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'DM San
 <!-- ESCÁNER DE CÓDIGO DE BARRAS -->
 <div class="scanner-wrap" id="scanner-wrap">
   <div class="scanner-box">
-    <video id="scanner-video" autoplay muted playsinline></video>
-    <div class="scanner-overlay">
-      <div class="scanner-frame"></div>
-      <div class="scanner-line"></div>
-    </div>
+    <div id="scanner-video" style="width:100%;height:100%"></div>
   </div>
-  <div class="scanner-label">📷 Apunta al código de barras del producto</div>
+  <div class="scanner-label">📷 Apunta al código de barras del producto<br><small style="opacity:.6;font-size:11px">Soporta EAN-13, CODE-128, QR y más</small></div>
   <div class="scanner-result" id="scanner-result"></div>
   <button class="scanner-close" onclick="cerrarScanner()">✕ Cancelar</button>
 </div>
@@ -1109,99 +1102,62 @@ function toast(msg){ const t=document.getElementById('toast');t.textContent=msg;
 
 if(window.innerWidth<=600) document.querySelector('.bottom-nav').style.display='flex';
 
-// ── ESCÁNER DE CÓDIGO DE BARRAS ───────────────────────────────
-var scannerStream = null;
-var scannerInterval = null;
+// ── ESCÁNER DE CÓDIGO DE BARRAS (html5-qrcode) ───────────────
+var html5Scanner = null;
 var buscandoTimer = null;
 
 async function abrirScanner() {
   const wrap = document.getElementById('scanner-wrap');
-  const video = document.getElementById('scanner-video');
   wrap.classList.add('open');
 
+  // Limpiar contenedor
+  document.getElementById('scanner-video').innerHTML = '';
+
   try {
-    scannerStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
-    });
-    video.srcObject = scannerStream;
-    await video.play();
-    iniciarDeteccion(video);
+    html5Scanner = new Html5Qrcode('scanner-video');
+    await html5Scanner.start(
+      { facingMode: 'environment' },
+      {
+        fps: 10,
+        qrbox: { width: 220, height: 220 },
+        aspectRatio: 1.0,
+        formatsToSupport: [
+          Html5QrcodeSupportedFormats.EAN_13,
+          Html5QrcodeSupportedFormats.EAN_8,
+          Html5QrcodeSupportedFormats.CODE_128,
+          Html5QrcodeSupportedFormats.CODE_39,
+          Html5QrcodeSupportedFormats.UPC_A,
+          Html5QrcodeSupportedFormats.UPC_E,
+          Html5QrcodeSupportedFormats.QR_CODE,
+        ]
+      },
+      function(codigo) {
+        // Código detectado exitosamente
+        cerrarScanner();
+        procesarCodigoEscaneado(codigo);
+      },
+      function(error) {
+        // Sigue intentando — ignorar errores de frame
+      }
+    );
   } catch(e) {
     cerrarScanner();
-    toast('⚠️ No se pudo acceder a la cámara. Verifica los permisos.');
-  }
-}
-
-function iniciarDeteccion(video) {
-  // Usar ZXing si está disponible
-  if (typeof ZXing !== 'undefined') {
-    const hints = new Map();
-    const formats = [
-      ZXing.BarcodeFormat.EAN_13,
-      ZXing.BarcodeFormat.EAN_8,
-      ZXing.BarcodeFormat.CODE_128,
-      ZXing.BarcodeFormat.CODE_39,
-      ZXing.BarcodeFormat.UPC_A,
-      ZXing.BarcodeFormat.UPC_E,
-      ZXing.BarcodeFormat.QR_CODE,
-    ];
-    hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, formats);
-    const reader = new ZXing.MultiFormatReader();
-    reader.setHints(hints);
-
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-
-    scannerInterval = setInterval(function() {
-      if (video.readyState !== video.HAVE_ENOUGH_DATA) return;
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      try {
-        const luminance = new ZXing.HTMLCanvasElementLuminanceSource(canvas);
-        const bitmap = new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(luminance));
-        const result = reader.decode(bitmap);
-        if (result && result.getText()) {
-          const codigo = result.getText();
-          cerrarScanner();
-          procesarCodigoEscaneado(codigo);
-        }
-      } catch(e) { /* sigue intentando */ }
-    }, 300);
-  } else {
-    // Fallback: BarcodeDetector nativo (Chrome Android)
-    if ('BarcodeDetector' in window) {
-      const detector = new BarcodeDetector({ formats: ['ean_13','ean_8','code_128','code_39','upc_a','upc_e','qr_code'] });
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-
-      scannerInterval = setInterval(async function() {
-        if (video.readyState !== video.HAVE_ENOUGH_DATA) return;
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        ctx.drawImage(video, 0, 0);
-        try {
-          const codes = await detector.detect(canvas);
-          if (codes && codes.length > 0) {
-            const codigo = codes[0].rawValue;
-            cerrarScanner();
-            procesarCodigoEscaneado(codigo);
-          }
-        } catch(e) {}
-      }, 400);
+    if (e.toString().includes('permission') || e.toString().includes('NotAllowed')) {
+      toast('⚠️ Permiso de cámara denegado. Actívalo en Configuración del navegador.');
     } else {
-      cerrarScanner();
-      toast('⚠️ Tu navegador no soporta escáner. Escribe el código manualmente.');
+      toast('⚠️ Error al abrir cámara: ' + e.toString().substring(0, 60));
     }
   }
 }
 
-function cerrarScanner() {
+async function cerrarScanner() {
   document.getElementById('scanner-wrap').classList.remove('open');
-  if (scannerInterval) { clearInterval(scannerInterval); scannerInterval = null; }
-  if (scannerStream) {
-    scannerStream.getTracks().forEach(function(t){ t.stop(); });
-    scannerStream = null;
+  if (html5Scanner) {
+    try {
+      if (html5Scanner.isScanning) await html5Scanner.stop();
+      html5Scanner.clear();
+    } catch(e) {}
+    html5Scanner = null;
   }
 }
 
